@@ -1,0 +1,2 @@
+# Proxmox Cloudinit.pm
+This was the file that modified to have DNS working with cloudbase-init on my Proxmox VE server farm. I took the nameservers and added them to a "default" variable which I apply to the first ethernet adapter (ETH0) when the network config is generated. This is only applied when the OS is windows as well, so linux will react no different.
