@@ -224,18 +224,40 @@ sub configdrive2_network {
 }
 
 sub configdrive2_gen_metadata {
-    my ($user, $network) = @_;
+    my ($conf, $vmid, $user, $network) = @_;
 
     my $uuid_str = Digest::SHA::sha1_hex($user.$network);
-    return configdrive2_metadata($uuid_str);
+    my ($hostname, $fqdn) = get_hostname_fqdn($conf, $vmid);
+
+    ### Setting Public SSH Keys ###
+    my $pubKey = "";
+    if (defined(my $keys = $conf->{sshkeys})) {
+        $pubKey .= "\n    \"public_keys\": {\n";
+        $keys = URI::Escape::uri_unescape($keys);
+        $keys = [map { my $key = $_; chomp $key; $key } split(/\n/, $keys)];
+        $keys = [grep { /\S/ } @$keys];
+
+        my $keyCount = @$keys;
+        for (my $i=0; $i < $keyCount; $i++) {
+            if ($i == $keyCount-1){
+                $pubKey .= "        \"$i\":\"".$keys->[$i]."\"\n";
+            } else {
+                $pubKey .= "        \"$i\":\"".$keys->[$i]."\",\n";
+            }
+        }
+        $pubKey .= "    },";
+    }
+
+    return configdrive2_metadata($pubKey, $hostname, $uuid_str);
 }
 
 sub configdrive2_metadata {
-    my ($uuid) = @_;
+    my ($pubKey, $hostname, $uuid) = @_;
     return <<"EOF";
-{
-     "uuid": "$uuid",
-     "network_config": { "content_path": "/content/0000" }
+{$pubKey
+    "hostname": "$hostname",
+    "uuid": "$uuid",
+    "network_config": { "content_path": "/content/0000" }
 }
 EOF
 }
@@ -248,7 +270,7 @@ sub generate_configdrive2 {
     $network_data = configdrive2_network($conf) if !defined($network_data);
 
     if (!defined($meta_data)) {
-        $meta_data = configdrive2_gen_metadata($user_data, $network_data);
+        $meta_data = configdrive2_gen_metadata($conf, $vmid, $user_data, $network_data);
     }
 
     # we always allocate a 4MiB disk for cloudinit and with the overhead of the ISO
